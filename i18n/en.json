@@ -1,0 +1,8 @@
+{
+	"@metadata": {
+		"authors": [
+			"Joel R. ([http://www.kolzchut.org.il Kol-Zchut])"
+		]
+	},
+	"boilerplate-desc": "Maintenance scripts to sync external links data and link health to Google Sheets"
+}
