@@ -145,7 +145,6 @@ class HealthCheckLinks extends Maintenance {
 
 		// Assemble response data.
 		$result = [
-			'isOK' => $sv->isOK(),  //@TODO nix
 			'code' => ( $httpRequest->getStatus() > 0 ) ? $httpRequest->getStatus() : 999,
 			'finalUrl' => $httpRequest->getFinalUrl(),
 		];
