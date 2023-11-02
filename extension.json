@@ -1,0 +1,35 @@
+{
+	"name": "KZBrokenLinks",
+	"version": "0.0.1",
+	"author": [
+		"Joel R. ([http://www.kolzchut.org.il Kol-Zchut])"
+	],
+	"url": "https://github.com/kolzchut/mediawiki-extensions-KZBrokenLinks",
+	"descriptionmsg": "kzbrokenlinks-desc",
+	"license-name": "GPL-2.0-or-later",
+	"type": "other",
+	"requires": {
+		"MediaWiki": ">= 1.35.0"
+	},
+	"config": {
+		"KZBrokenLinksGoogleConfig": {
+			"keyPath": "",
+			"sheetId": ""
+		},
+		"KZBrokenLinksHttpConfig": {
+			"proxy": "",
+			"timeout": "",
+			"agent": "",
+			"excludedProtocols": []
+		}
+	},
+	"HookHandlers": {},
+	"Hooks": {},
+	"MessagesDirs": {
+		"KZBrokenLinks": [
+			"i18n"
+		]
+	},
+	"ResourceModules": {},
+	"manifest_version": 1
+}

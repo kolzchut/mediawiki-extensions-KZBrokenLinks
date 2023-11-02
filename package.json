@@ -1,5 +1,5 @@
 {
-	"name": "BoilerPlate",
+	"name": "KWBrokenLinks",
 	"private": true,
 	"scripts": {
 		"test": "grunt test"
