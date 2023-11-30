@@ -11,10 +11,14 @@
 	"requires": {
 		"MediaWiki": ">= 1.35.0"
 	},
+	"AutoloadClasses": {
+		"KZBrokenLinksMaintenance": "includes/KZBrokenLinksMaintenance.php"
+	},
 	"config": {
 		"KZBrokenLinksGoogleConfig": {
 			"keyPath": "",
-			"sheetId": ""
+			"sheetId": "",
+			"rateLimit": ""
 		},
 		"KZBrokenLinksHttpConfig": {
 			"proxy": "",

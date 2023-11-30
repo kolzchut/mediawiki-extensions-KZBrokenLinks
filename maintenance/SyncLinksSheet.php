@@ -6,6 +6,7 @@ if ( !is_readable( "$IP/maintenance/Maintenance.php" ) ) {
 	die( "MW_INSTALL_PATH needs to be set to your MediaWiki installation.\n" );
 }
 require_once ( "$IP/maintenance/Maintenance.php" );
+require_once ( "$IP/extensions/KZBrokenLinks/includes/KZBrokenLinksMaintenance.php" );
 // @codingStandardsIgnoreEnd
 
 /**
@@ -15,7 +16,7 @@ require_once ( "$IP/maintenance/Maintenance.php" );
  * @SuppressWarnings(StaticAccess)
  * @SuppressWarnings(LongVariable)
  */
-class SyncLinksSheet extends Maintenance {
+class SyncLinksSheet extends KZBrokenLinksMaintenance {
 
 	private array $excludedProtocols;
 
@@ -57,6 +58,7 @@ class SyncLinksSheet extends Maintenance {
 		// Clear all-links rows.
 		$clearService = new \Google\Service\Sheets\ClearValuesRequest();
 		$service->spreadsheets_values->clear( $spreadsheetId, 'ALL_LINKS!A2:C', $clearService );
+		$this->maintainRateLimit();
 
 		// Get the highest el_id from the externallinks table
 		$dbw = $this->getDB( DB_PRIMARY );
@@ -125,6 +127,7 @@ class SyncLinksSheet extends Maintenance {
 					'insertDataOption' => 'INSERT_ROWS',
 				]
 			);
+			$this->maintainRateLimit();
 
 			// If the maximum was reached, stop processing even if there are more rows in externallinks.
 			if ( $max_links > 0 && $processed_count == $max_links ) {
@@ -139,6 +142,7 @@ class SyncLinksSheet extends Maintenance {
 			$this->output( "Found no new links to add. Exiting.\n" );
 			return;
 		}
+		$this->maintainRateLimit();
 		$this->output( "Appending $new_links_count new links to LINKS_STATUS sheet...\n" );
 
 		// Append new links to the LINKS_STATUS sheet.

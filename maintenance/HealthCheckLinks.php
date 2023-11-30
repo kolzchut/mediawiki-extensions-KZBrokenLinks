@@ -6,6 +6,7 @@ if ( !is_readable( "$IP/maintenance/Maintenance.php" ) ) {
 	die( "MW_INSTALL_PATH needs to be set to your MediaWiki installation.\n" );
 }
 require_once ( "$IP/maintenance/Maintenance.php" );
+require_once ( "$IP/extensions/KZBrokenLinks/includes/KZBrokenLinksMaintenance.php" );
 // @codingStandardsIgnoreEnd
 
 use MediaWiki\MediaWikiServices;
@@ -17,7 +18,7 @@ use MediaWiki\MediaWikiServices;
  * @SuppressWarnings(StaticAccess)
  * @SuppressWarnings(LongVariable)
  */
-class HealthCheckLinks extends Maintenance {
+class HealthCheckLinks extends KZBrokenLinksMaintenance {
 
 	public function __construct() {
 		parent::__construct();
@@ -76,6 +77,7 @@ class HealthCheckLinks extends Maintenance {
 				$this->output( "Row number {$row_num} in NEXT_CHECK sheet is empty. Exiting.\n" );
 				return;
 			}
+			$this->maintainRateLimit();
 
 			// Parse URL.
 			$url = $row->getValues()[0][1];
@@ -123,6 +125,7 @@ class HealthCheckLinks extends Maintenance {
 			$service->spreadsheets_values->update(
 				$spreadsheetId, $firstCell, $valueRange, [ 'valueInputOption' => 'USER_ENTERED' ]
 			);
+			$this->maintainRateLimit();
 
 			$processed_count++;
 		}

@@ -12,6 +12,7 @@ particular status data pertaining to the links' "health".
 |-------------------------------|----------------------|------------------------------------------|------------
 | $wgKZBrokenLinksGoogleConfig  | `keyPath`            | empty                                    | local path to Google Client authentication key JSON
 | $wgKZBrokenLinksGoogleConfig  | `sheetId`            | empty                                    | ID of the Google Sheets document to sync to
+| $wgKZBrokenLinksGoogleConfig  | `rateLimit`          | 60                                       | Maximum Google API callouts per minute
 | $wgKZBrokenLinksHttpConfig    | `proxy`              | empty                                    | optional proxy configuration for HTTP callouts
 | $wgKZBrokenLinksHttpConfig    | `timeout`            | 30                                       | timeout in seconds for HTTP callouts
 | $wgKZBrokenLinksHttpConfig    | `agent`              | Kol-Zchut Broken Links HealthCheckLinks  | agent name for HTTP callouts
