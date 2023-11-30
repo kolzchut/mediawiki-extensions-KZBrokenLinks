@@ -22,6 +22,14 @@ class HealthCheckLinks extends Maintenance {
 	public function __construct() {
 		parent::__construct();
 		$this->addDescription( "CLI utility to poll the health of external links recorded in Google Sheets" );
+		$this->addOption( 'runtime',
+			'Maximum number of seconds to execute before exiting (default 300)',
+			false, true
+		);
+		$this->addOption( 'maxlinks',
+			'Maximum number of links to process before exiting (default unlimited)',
+			false, true
+		);
 
 		// MW 1.28
 		if ( method_exists( $this, 'requireExtension' ) ) {
@@ -36,6 +44,10 @@ class HealthCheckLinks extends Maintenance {
 		// Time limit
 		$max_secs = $this->getOption( 'runtime', 300 );
 		$end_time = time() + $max_secs;
+
+		// Optionally also limit total number of links/rows
+		$max_links = $this->getOption( 'maxlinks', 0 );
+		$processed_count = 0;
 
 		// Load configuration
 		$config = $this->getConfig();
@@ -57,7 +69,7 @@ class HealthCheckLinks extends Maintenance {
 		$today_day = date( 'j' );
 		$today_month = date( 'n' );
 		$today_year = date( 'Y' );
-		while ( time() < $end_time ) {
+		while ( time() < $end_time && ( $max_links === 0 || $processed_count < $max_links ) ) {
 			// Query the next row in NEXT_CHECK sheet
 			$row = $service->spreadsheets_values->get( $spreadsheetId, "NEXT_CHECK!A{$row_num}:F{$row_num}" );
 			if ( empty( $row ) || empty( $row->getValues()[0] ) || empty( $row->getValues()[0][1] ) ) {
@@ -111,6 +123,8 @@ class HealthCheckLinks extends Maintenance {
 			$service->spreadsheets_values->update(
 				$spreadsheetId, $firstCell, $valueRange, [ 'valueInputOption' => 'USER_ENTERED' ]
 			);
+
+			$processed_count++;
 		}
 	}
 

@@ -17,9 +17,19 @@ require_once ( "$IP/maintenance/Maintenance.php" );
  */
 class SyncLinksSheet extends Maintenance {
 
+	private array $excludedProtocols;
+
 	public function __construct() {
 		parent::__construct();
 		$this->addDescription( "CLI utility to sync the Mediawiki table externalinks to Google Sheets" );
+		$this->addOption( 'chunksize',
+			'Maximum number of external links to sync from Mediawiki to Google Sheets per API call (default 500)',
+			false, true
+		);
+		$this->addOption( 'maxlinks',
+			'Maximum number of external links to sync before exiting (default unlimited)',
+			false, true
+		);
 
 		if ( method_exists( $this, 'requireExtension' ) ) {
 			$this->requireExtension( 'KZBrokenLinks' );
@@ -34,6 +44,7 @@ class SyncLinksSheet extends Maintenance {
 		$config = $this->getConfig();
 		$googleConfig = $config->get( 'KZBrokenLinksGoogleConfig' );
 		$spreadsheetId = $googleConfig[ 'sheetId' ];
+		$this->excludedProtocols = $config->get( 'KZBrokenLinksHttpConfig' )[ 'excludedProtocols' ] ?? [];
 
 		// Set up Google Client and Sheets Service
 		$client = new \Google_Client();
@@ -56,7 +67,9 @@ class SyncLinksSheet extends Maintenance {
 		$max_el_id = $res->fetchRow()[0];
 
 		// Query Mediawiki's external links table and append to "All Links" sheet in chunks
-		$chunk_size = 2;
+		$chunk_size = $this->getOption( 'chunksize', 500 );
+		$max_links = $this->getOption( 'maxlinks', 0 );
+		$processed_count = 0;
 		for ( $last_el_id = 0; $last_el_id < $max_el_id; ) {
 			$this->output( "Loading externallinks data from el_id $last_el_id...\n" );
 			$res = $dbw->select(
@@ -83,12 +96,21 @@ class SyncLinksSheet extends Maintenance {
 			$values = [];
 			for ( $row = $res->fetchRow(); is_array( $row ); $row = $res->fetchRow() ) {
 				// Convert table row to spreadsheet row values.
+				$url = $this->convertUrl( $row['el_to'] );
+				if ( $url === false ) {
+					// URL with excluded protocol, so skip this row.
+					continue;
+				}
 				$values[] = [
-					$this->convertUrl( $row['el_to'] ),
+					$url,
 					$row['el_from'],
 					$this->convertPageTitle( $row['page_title'] ),
 				];
 				$last_el_id = $row['el_id'];
+				if ( $max_links > 0 && ++$processed_count == $max_links ) {
+					// Maximum reached, so stop adding rows to sync.
+					break;
+				}
 			}
 
 			// Append rows to ALL_LINKS sheet.
@@ -103,6 +125,11 @@ class SyncLinksSheet extends Maintenance {
 					'insertDataOption' => 'INSERT_ROWS',
 				]
 			);
+
+			// If the maximum was reached, stop processing even if there are more rows in externallinks.
+			if ( $max_links > 0 && $processed_count == $max_links ) {
+				break;
+			}
 		}
 
 		// Query new links.
@@ -141,9 +168,15 @@ class SyncLinksSheet extends Maintenance {
 	 * @return string $url The URL ready for export to the ALL_LINKS sheet
 	 */
 	private function convertUrl( $url ) {
-		// URL-decode the domain name.
+		// Break out the URL protocol.
 		$urlexp = explode( '://', $url, 2 );
+
+		// URL-decode the domain name.
 		if ( count( $urlexp ) === 2 ) {
+			if ( in_array( $urlexp[0], $this->excludedProtocols ) ) {
+				// Excluded protocol, so we won't process this URL.
+				return false;
+			}
 			$locexp = explode( '/', $urlexp[1], 2 );
 			$domain = urldecode( $locexp[0] );
 			$url = $urlexp[0] . '://' . $domain;
