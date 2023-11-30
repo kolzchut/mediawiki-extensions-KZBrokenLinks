@@ -137,9 +137,9 @@ class HealthCheckLinks extends Maintenance {
 	private function calloutToUrl( $url, $lastCheckFailed = false ) {
 		// Config
 		$config = $this->getConfig()->get( 'KZBrokenLinksHttpConfig' );
-		$proxy = $config[ 'proxy' ] ?? null;
-		$timeout = $config[ 'timeout' ] ?? 30;
-		$agent = $config[ 'agent' ] ?? 'Kol-Zchut Broken Links HealthCheckLinks';
+		$proxy = empty( $config[ 'proxy' ] ) ? null : $config[ 'proxy' ];
+		$timeout = empty( $config[ 'timeout' ] ) ? 30 : $config[ 'timeout' ];
+		$agent = empty( $config[ 'agent' ] ) ? 'Kol-Zchut Broken Links HealthCheckLinks' : $config[ 'agent' ];
 		$method = $lastCheckFailed ? 'GET' : 'HEAD';
 
 		// Make the callout
