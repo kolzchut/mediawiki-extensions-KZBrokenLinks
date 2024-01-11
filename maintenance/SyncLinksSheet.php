@@ -172,15 +172,19 @@ class SyncLinksSheet extends KZBrokenLinksMaintenance {
 	 * @return string $url The URL ready for export to the ALL_LINKS sheet
 	 */
 	private function convertUrl( $url ) {
+		// First check for excluded protocol.
+		foreach ( $this->excludedProtocols as $excludedProtocol ) {
+			if ( stripos( $url, $excludedProtocol ) === 0 ) {
+				// Excluded protocol, so we won't process this URL.
+				return false;
+			}
+		}
+
 		// Break out the URL protocol.
 		$urlexp = explode( '://', $url, 2 );
 
 		// URL-decode the domain name.
 		if ( count( $urlexp ) === 2 ) {
-			if ( in_array( $urlexp[0], $this->excludedProtocols ) ) {
-				// Excluded protocol, so we won't process this URL.
-				return false;
-			}
 			$locexp = explode( '/', $urlexp[1], 2 );
 			$domain = urldecode( $locexp[0] );
 			$url = $urlexp[0] . '://' . $domain;
