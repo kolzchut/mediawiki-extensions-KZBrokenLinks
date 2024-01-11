@@ -53,6 +53,7 @@ class SyncLinksSheet extends KZBrokenLinksMaintenance {
 		$client->setScopes( [ \Google\Service\Sheets::SPREADSHEETS ] );
 		$client->setAccessType( 'offline' );
 		$client->setAuthConfig( $googleConfig[ 'keyPath' ] );
+		$client->setConfig( 'retry', [ 'retries' => 6 ] );
 		$service = new \Google\Service\Sheets( $client );
 
 		// Clear all-links rows.
