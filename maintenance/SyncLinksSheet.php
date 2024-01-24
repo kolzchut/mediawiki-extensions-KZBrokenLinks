@@ -98,6 +98,8 @@ class SyncLinksSheet extends KZBrokenLinksMaintenance {
 			);
 			$values = [];
 			for ( $row = $res->fetchRow(); is_array( $row ); $row = $res->fetchRow() ) {
+				$last_el_id = $row['el_id'];
+
 				// Convert table row to spreadsheet row values.
 				$url = $this->convertUrl( $row['el_to'] );
 				if ( $url === false ) {
@@ -109,7 +111,6 @@ class SyncLinksSheet extends KZBrokenLinksMaintenance {
 					$row['el_from'],
 					$this->convertPageTitle( $row['page_title'] ),
 				];
-				$last_el_id = $row['el_id'];
 				if ( $max_links > 0 && ++$processed_count == $max_links ) {
 					// Maximum reached, so stop adding rows to sync.
 					break;
