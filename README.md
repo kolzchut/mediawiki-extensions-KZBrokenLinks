@@ -6,6 +6,20 @@ This extension provides maintenance scripts to automate updates to an
 external (Google Sheets) database of all external links and related data, in
 particular status data pertaining to the links' "health".
 
+## Installation
+1. Download the extension
+2. Add the extension's `composer.json` to `composer.local.json` in MediaWiki's installation directory:
+   ```json
+ 	"extra": {
+ 		"merge-plugin": {
+ 			"include": [
+ 				"extensions/KZBrokenLinks/composer.json"
+ 			]
+ 	}
+   ```
+3. Run `composer update` in  MediaWiki's installation directory: 
+4. Add `wfLoadExtension( 'KZBrokenLinks' )` to `LocalSettings.php` or your custom PHP config file
+
 ## Configuration
 
 | Main Key                      | sub-key              | default                                  | description
@@ -17,6 +31,10 @@ particular status data pertaining to the links' "health".
 | $wgKZBrokenLinksHttpConfig    | `timeout`            | 30                                       | timeout in seconds for HTTP callouts
 | $wgKZBrokenLinksHttpConfig    | `agent`              | Kol-Zchut Broken Links HealthCheckLinks  | agent name for HTTP callouts
 | $wgKZBrokenLinksHttpConfig    | `excludedProtocols`  | empty                                    | array of protocols to exclude from link health checks (e.g., ftp)
+
+### sheetId
+The appropriate Google Sheet can be created by uploading the included `google-sheets-template.xslx`;
+make sure it is converted to a native Google Sheet, otherwise the extension won't be able to use it.
 
 ## Maintenance scripts
 
