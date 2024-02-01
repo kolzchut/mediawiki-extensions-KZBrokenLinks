@@ -149,6 +149,11 @@ class SyncLinksSheet extends KZBrokenLinksMaintenance {
 
 		// Append new links to the LINKS_STATUS sheet.
 		$appendValues = $range->getValues();
+		if ( !empty( $appendValues[0][0] ) && $appendValues[0][0] == '#N/A' ) {
+			// The query in Google Sheets says there are no new links. Exit.
+			$this->output( "No new links to sync. Exiting.\n" );
+			return;
+		}
 		for ( $i = count( $appendValues ) - 1; $i >= 0; $i-- ) {
 			// Don't overwrite the sheet's row-index column.
 			array_unshift( $appendValues[$i], '' );
