@@ -19,6 +19,7 @@ require_once ( "$IP/extensions/KZBrokenLinks/includes/KZBrokenLinksMaintenance.p
 class SyncLinksSheet extends KZBrokenLinksMaintenance {
 
 	private array $excludedProtocols;
+	private array $urlsEncountered;
 
 	public function __construct() {
 		parent::__construct();
@@ -58,7 +59,7 @@ class SyncLinksSheet extends KZBrokenLinksMaintenance {
 
 		// Clear all-links rows.
 		$clearService = new \Google\Service\Sheets\ClearValuesRequest();
-		$service->spreadsheets_values->clear( $spreadsheetId, 'ALL_LINKS!A2:C', $clearService );
+		$service->spreadsheets_values->clear( $spreadsheetId, 'ALL_LINKS!A2:D', $clearService );
 		$this->maintainRateLimit();
 
 		// Get the highest el_id from the externallinks table
@@ -73,6 +74,7 @@ class SyncLinksSheet extends KZBrokenLinksMaintenance {
 		$chunk_size = $this->getOption( 'chunksize', 500 );
 		$max_links = $this->getOption( 'maxlinks', 0 );
 		$processed_count = 0;
+		$this->urlsEncountered = [];
 		for ( $last_el_id = 0; $last_el_id < $max_el_id; ) {
 			$this->output( "Loading externallinks data from el_id $last_el_id...\n" );
 			$res = $dbw->select(
@@ -106,11 +108,14 @@ class SyncLinksSheet extends KZBrokenLinksMaintenance {
 					// URL with excluded protocol, so skip this row.
 					continue;
 				}
+				$repeat_url = !empty( $this->urlsEncountered[$url] );
 				$values[] = [
 					$url,
 					$row['el_from'],
-					$this->convertPageTitle( $row['page_title'] ),
+					$repeat_url ? '' : $this->convertPageTitle( $row['page_title'] ),
+					$repeat_url ? '' : $this->getLinkText( $row['el_to'], $row['el_from'] ),
 				];
+				$this->urlsEncountered[ $url ] = true;
 				if ( $max_links > 0 && ++$processed_count == $max_links ) {
 					// Maximum reached, so stop adding rows to sync.
 					break;
@@ -214,6 +219,39 @@ class SyncLinksSheet extends KZBrokenLinksMaintenance {
 	private function convertPageTitle( $title ) {
 		$title = str_replace( '_', ' ', $title );
 		return $title;
+	}
+
+	/**
+	 * Locate and extract link text from wiki page.
+	 * @param string $url
+	 * @param int $page_id
+	 * @return string $linkText
+	 */
+	private function getLinkText( $url, $page_id ) {
+		$page = \WikiPage::newFromID( $page_id );
+		$wikitext = $page->getContent()->getWikitextForTransclusion();
+		$url = preg_replace( '/\\s/', '%20', $url );
+		$mostlyDecodedUrl = preg_replace( '/\\s/', '%20', urldecode( $url ) );
+		$extraEncodedUrl = str_replace( [ '-', '@' ], [ '%2D', '%40' ], $url );
+		$urlVersions = [ $url, $mostlyDecodedUrl, $extraEncodedUrl ];
+		// Is there a query string?
+		$qsPos = strpos( $url, '?' );
+		if ( $qsPos !== false ) {
+			// Try properly encoding the query string.
+			parse_str( substr( $url, $qsPos + 1 ), $params );
+			$qs = http_build_query( $params );
+			$urlVersions[] = substr( $url, 0, $qsPos ) . '?'
+				. str_replace( [ '-', '@', '.' ], [ '%2D', '%40', '%2E' ], $qs );
+		}
+		foreach ( $urlVersions as $searchUrl ) {
+			$regex = '|\\['
+			. preg_replace( '/([\\/\\:\\(\\)\\+\\-\\.\\?\\&\\%\\*\\{\\}\\[\\]\\#\\|])/', '\\\$1', $searchUrl )
+			. '\\s+(.+?)\\]|i';
+			if ( preg_match( $regex, $wikitext, $matches ) ) {
+				return $matches[1];
+			}
+		}
+		return '';
 	}
 }
 
