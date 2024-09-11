@@ -194,6 +194,7 @@ class HealthCheckLinks extends KZBrokenLinksMaintenance {
 		$proxy = empty( $config[ 'proxy' ] ) ? null : $config[ 'proxy' ];
 		$timeout = empty( $config[ 'timeout' ] ) ? 30 : $config[ 'timeout' ];
 		$agent = empty( $config[ 'agent' ] ) ? 'Kol-Zchut Broken Links HealthCheckLinks' : $config[ 'agent' ];
+		$followRedirects = $config[ 'followRedirects' ] ?? true;
 		$method = $lastCheckFailed ? 'GET' : 'HEAD';
 
 		// Make the callout
@@ -203,6 +204,7 @@ class HealthCheckLinks extends KZBrokenLinksMaintenance {
 			'method' => $method,
 			'proxy' => $proxy,
 			'userAgent' => $agent,
+			'followRedirects' => $followRedirects
 			// 'logger' => $logger,  // These two we probably won't need.
 			// 'caInfo' => $caBundlePath,
 		];

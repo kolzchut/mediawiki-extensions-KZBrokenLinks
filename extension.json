@@ -24,7 +24,8 @@
 			"proxy": "",
 			"timeout": "",
 			"agent": "",
-			"excludedProtocols": []
+			"excludedProtocols": [],
+			"followRedirects": true
 		}
 	},
 	"HookHandlers": {},
