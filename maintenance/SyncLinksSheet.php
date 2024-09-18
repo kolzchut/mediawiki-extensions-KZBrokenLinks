@@ -78,7 +78,7 @@ class SyncLinksSheet extends KZBrokenLinksMaintenance {
 		$processed_count = 0;
 		$this->urlsEncountered = [];
 		for ( $last_el_id = 0; $last_el_id < $max_el_id; ) {
-			$this->output( "Loading externallinks data from el_id $last_el_id...\n" );
+			$this->output( "Loading externallinks data from el_id $last_el_id..." );
 			$res = $dbw->select(
 				[
 					'el' => 'externallinks',
@@ -127,6 +127,8 @@ class SyncLinksSheet extends KZBrokenLinksMaintenance {
 					break;
 				}
 			}
+
+			$this->output( ' (' . count( $this->urlsEncountered ) . " total unique URLs)\n" );
 
 			// Append rows to ALL_LINKS sheet.
 			$valueRange = new \Google\Service\Sheets\ValueRange();
