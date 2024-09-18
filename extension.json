@@ -35,6 +35,7 @@
 			"i18n"
 		]
 	},
+	"load_composer_autoloader": true,
 	"ResourceModules": {},
 	"manifest_version": 1
 }

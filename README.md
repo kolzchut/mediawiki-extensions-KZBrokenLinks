@@ -9,17 +9,8 @@ particular status data pertaining to the links' "health".
 ## Installation
 
 1. Download the extension
-2. Add the extension's `composer.json` to `composer.local.json` in MediaWiki's installation directory:
-   ```json
-   "extra": {
-   	"merge-plugin": {
-   		"include": [
-   			"extensions/KZBrokenLinks/composer.json"
-   		]
-   }
-   ```
-3. Run `composer update` in MediaWiki's installation directory:
-4. Add `wfLoadExtension( 'KZBrokenLinks' )` to `LocalSettings.php` or your custom PHP config file
+2. Run `composer install --no-dev` in the extension's directory
+3. Add `wfLoadExtension( 'KZBrokenLinks' )` to `LocalSettings.php` or your custom PHP config file
 
 ## Configuration
 
