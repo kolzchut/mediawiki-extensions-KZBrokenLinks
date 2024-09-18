@@ -48,6 +48,8 @@ class SyncLinksSheet extends KZBrokenLinksMaintenance {
 		$spreadsheetId = $googleConfig[ 'sheetId' ];
 		$this->excludedProtocols = $config->get( 'KZBrokenLinksHttpConfig' )[ 'excludedProtocols' ] ?? [];
 
+		$titleFormatter = \MediaWiki\MediaWikiServices::getInstance()->getTitleFormatter();
+
 		// Set up Google Client and Sheets Service
 		$client = new \Google_Client();
 		$client->setApplicationName( 'Google Sheets API' );
@@ -87,6 +89,7 @@ class SyncLinksSheet extends KZBrokenLinksMaintenance {
 					'el.el_from',
 					'el.el_to',
 					'p.page_title',
+					'p.page_namespace'
 				],
 				"el.el_id > $last_el_id",
 				__METHOD__,
@@ -108,11 +111,14 @@ class SyncLinksSheet extends KZBrokenLinksMaintenance {
 					// URL with excluded protocol, so skip this row.
 					continue;
 				}
+
+				$formattedTitle = $titleFormatter->formatTitle( $row['page_namespace'], $row['page_title'] );
 				$repeat_url = !empty( $this->urlsEncountered[$url] );
 				$values[] = [
 					$url,
 					$row['el_from'],
-					$repeat_url ? '' : $this->convertPageTitle( $row['page_title'] ),
+					$formattedTitle,
+					// getLinkText() is expensive, so don't run it for repeat links
 					$repeat_url ? '' : $this->getLinkText( $row['el_to'], $row['el_from'] ),
 				];
 				$this->urlsEncountered[ $url ] = true;
@@ -209,16 +215,6 @@ class SyncLinksSheet extends KZBrokenLinksMaintenance {
 		$url = strtolower( $url );
 
 		return $url;
-	}
-
-	/**
-	 * Convert underscores to spaces.
-	 * @param string $title The title as recorded in the pages table
-	 * @return string $title The title with underscores converted to spaces
-	 */
-	private function convertPageTitle( $title ) {
-		$title = str_replace( '_', ' ', $title );
-		return $title;
 	}
 
 	/**
