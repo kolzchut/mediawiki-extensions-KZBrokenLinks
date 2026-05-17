@@ -226,7 +226,7 @@ class SyncLinksSheet extends KZBrokenLinksMaintenance {
 	 * @return string $linkText
 	 */
 	private function getLinkText( $url, $page_id ) {
-		$page = \WikiPage::newFromID( $page_id );
+		$page = \MediaWiki\MediaWikiServices::getInstance()->getWikiPageFactory()->newFromID( $page_id );
 		$wikitext = $page->getContent()->getWikitextForTransclusion();
 		$url = preg_replace( '/\\s/', '%20', $url );
 		$mostlyDecodedUrl = preg_replace( '/\\s/', '%20', urldecode( $url ) );
