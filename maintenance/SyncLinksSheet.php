@@ -87,7 +87,8 @@ class SyncLinksSheet extends KZBrokenLinksMaintenance {
 				[
 					'el.el_id',
 					'el.el_from',
-					'el.el_to',
+					'el.el_to_domain_index',
+					'el.el_to_path',
 					'p.page_title',
 					'p.page_namespace'
 				],
@@ -106,7 +107,12 @@ class SyncLinksSheet extends KZBrokenLinksMaintenance {
 				$last_el_id = $row['el_id'];
 
 				// Convert table row to spreadsheet row values.
-				$url = $this->convertUrl( $row['el_to'] );
+				$rawUrl = $this->reconstructUrl( $row );
+				if ( $rawUrl === '' ) {
+					// Domain index that wouldn't parse, so skip this row.
+					continue;
+				}
+				$url = $this->convertUrl( $rawUrl );
 				if ( $url === false ) {
 					// URL with excluded protocol, so skip this row.
 					continue;
@@ -119,7 +125,7 @@ class SyncLinksSheet extends KZBrokenLinksMaintenance {
 					$row['el_from'],
 					$formattedTitle,
 					// getLinkText() is expensive, so don't run it for repeat links
-					$repeat_url ? '' : $this->getLinkText( $row['el_to'], $row['el_from'] ),
+					$repeat_url ? '' : $this->getLinkText( $rawUrl, $row['el_from'] ),
 				];
 				$this->urlsEncountered[ $url ] = true;
 				if ( $max_links > 0 && ++$processed_count == $max_links ) {
@@ -184,6 +190,38 @@ class SyncLinksSheet extends KZBrokenLinksMaintenance {
 		);
 
 		$this->output( "Done.\n" );
+	}
+
+	/**
+	 * Rebuild a link's URL from the two columns that replaced el_to.
+	 *
+	 * MediaWiki 1.40 split externallinks.el_to into el_to_domain_index -- the
+	 * URL's scheme plus its host with the labels reversed, so that a search
+	 * for every link into a domain is an index prefix scan -- and el_to_path.
+	 * 1.43 dropped el_to altogether, so the original URL has to be reassembled
+	 * here. Core does the same thing in the same way; see
+	 * ExternalLinks\ExternalLinksLookup::getExternalLinksForPage().
+	 *
+	 * Un-reversing is not just a matter of flipping the labels back: mailto
+	 * indexes are stored as "domain.reversed@localpart", IP hosts are left
+	 * alone, and ports ride along. LinkFilter::reverseIndexes() is the exact
+	 * inverse of the function that wrote the column, so use it rather than
+	 * reimplementing those cases.
+	 *
+	 * @param array $row Row with el_to_domain_index and el_to_path
+	 * @return string The URL, or '' if the domain index could not be parsed
+	 */
+	private function reconstructUrl( array $row ) {
+		$domain = \MediaWiki\ExternalLinks\LinkFilter::reverseIndexes( $row['el_to_domain_index'] );
+		if ( $domain === '' ) {
+			// reverseIndexes() returns '' for an index it can't parse. Without
+			// a scheme and host there is no URL to report, and the path alone
+			// would be worse than useless in the sheet.
+			return '';
+		}
+
+		// el_to_path is nullable: a link to a bare domain records no path.
+		return $domain . ( $row['el_to_path'] ?? '' );
 	}
 
 	/**
