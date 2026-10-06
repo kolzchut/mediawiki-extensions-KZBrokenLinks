@@ -143,7 +143,10 @@ class HealthCheckLinks extends KZBrokenLinksMaintenance {
 					// Call out to URL and check response status
 					$last_status = $rows->getValues()[$row_i][5] ?? 0;
 					$result = $this->calloutToUrl( $url, $protocol, $last_status >= 300 );
-					$redirectUrl = ( strtolower( $result['finalUrl'] ) != $url ) ? $result['finalUrl'] : '';
+					// The sheet's URLs keep their case, so compare both sides
+					// case-insensitively, as when every sheet URL was lowercase.
+					$redirectUrl = ( strtolower( $result['finalUrl'] ) != strtolower( $url ) )
+						? $result['finalUrl'] : '';
 
 					// Add status update to batch.
 					$update_row = $rows->getValues()[$row_i][0];

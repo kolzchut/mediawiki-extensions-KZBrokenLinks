@@ -32,6 +32,9 @@ class SyncLinksSheet extends KZBrokenLinksMaintenance {
 			'Maximum number of external links to sync before exiting (default unlimited)',
 			false, true
 		);
+		$this->addOption( 'no-recase',
+			'Skip restoring the case of URLs in LINKS_STATUS that earlier versions lowercased'
+		);
 
 		if ( method_exists( $this, 'requireExtension' ) ) {
 			$this->requireExtension( 'KZBrokenLinks' );
@@ -156,6 +159,15 @@ class SyncLinksSheet extends KZBrokenLinksMaintenance {
 			}
 		}
 
+		// Restore the case of LINKS_STATUS URLs that earlier versions lowercased.
+		if ( $this->hasOption( 'no-recase' ) ) {
+			$this->output( "Skipping LINKS_STATUS re-case (--no-recase).\n" );
+		} elseif ( $max_links > 0 ) {
+			$this->output( "Skipping LINKS_STATUS re-case: --maxlinks makes this a partial export.\n" );
+		} else {
+			$this->recaseLinksStatus( $service, $spreadsheetId, $chunk_size );
+		}
+
 		// Query new links.
 		$range = $service->spreadsheets_values->get( $spreadsheetId, 'NEW_LINKS!C2:C' );
 		$new_links_count = count( $range );
@@ -226,8 +238,16 @@ class SyncLinksSheet extends KZBrokenLinksMaintenance {
 
 	/**
 	 * Massage URL to ensure proper form.
+	 *
+	 * Only the scheme and host are case-insensitive (RFC 3986 3.1, 3.2.2), and
+	 * core already stores the host lowercased (LinkFilter::makeIndexes()), so
+	 * only those are lowercased here. Path, query and fragment are often
+	 * case-sensitive on the server, and HealthCheckLinks requests exactly
+	 * what is written to the sheet, so they are kept byte-exact.
+	 *
 	 * @param string $url The URL as recorded in the externallinks table
-	 * @return string $url The URL ready for export to the ALL_LINKS sheet
+	 * @return string|false $url The URL ready for export to the ALL_LINKS
+	 *  sheet, or false if its protocol is excluded
 	 */
 	private function convertUrl( $url ) {
 		// First check for excluded protocol.
@@ -241,20 +261,127 @@ class SyncLinksSheet extends KZBrokenLinksMaintenance {
 		// Break out the URL protocol.
 		$urlexp = explode( '://', $url, 2 );
 
-		// URL-decode the domain name.
 		if ( count( $urlexp ) === 2 ) {
+			// URL-decode the domain name, and lowercase it with the scheme.
+			// Userinfo before an '@' (rare) is not part of the host, so it
+			// keeps its case.
 			$locexp = explode( '/', $urlexp[1], 2 );
-			$domain = urldecode( $locexp[0] );
-			$url = $urlexp[0] . '://' . $domain;
+			$authority = urldecode( $locexp[0] );
+			$atPos = strrpos( $authority, '@' );
+			$userinfo = $atPos === false ? '' : substr( $authority, 0, $atPos + 1 );
+			$host = $atPos === false ? $authority : substr( $authority, $atPos + 1 );
+			$url = strtolower( $urlexp[0] ) . '://' . $userinfo . strtolower( $host );
 			if ( count( $locexp ) === 2 ) {
 				$url = $url . '/' . $locexp[1];
 			}
+		} else {
+			// A scheme without '//' (e.g. "news:"); lowercase the scheme only.
+			$colonPos = strpos( $url, ':' );
+			if ( $colonPos !== false ) {
+				$url = strtolower( substr( $url, 0, $colonPos ) ) . substr( $url, $colonPos );
+			}
 		}
 
-		// Convert to all-lowercase to reduce dupe rows.
-		$url = strtolower( $url );
-
 		return $url;
+	}
+
+	/**
+	 * Restore the case of URLs that earlier versions of this script lowercased.
+	 *
+	 * Until URLs were exported case-preserved, every URL in LINKS_STATUS was
+	 * written all-lowercase. NEW_LINKS matches against LINKS_STATUS
+	 * case-insensitively, so those rows would never be replaced by their
+	 * exact-case URLs and the health check would keep requesting the wrong
+	 * path. Rewrite each such cell with the one URL exported this run that
+	 * it is the lowercase form of. Corrected cells no longer qualify, so this
+	 * is a no-op once the sheet has been fixed.
+	 *
+	 * @param \Google\Service\Sheets $service
+	 * @param string $spreadsheetId
+	 * @param int $chunkSize Maximum cells per batchUpdate call
+	 */
+	private function recaseLinksStatus( $service, $spreadsheetId, $chunkSize ) {
+		$this->output( "Checking LINKS_STATUS for lowercased URLs...\n" );
+		$range = $service->spreadsheets_values->get( $spreadsheetId, 'LINKS_STATUS!B2:B' );
+		$this->maintainRateLimit();
+		$cells = [];
+		foreach ( $range->getValues() ?? [] as $i => $rowValues ) {
+			$cells[$i + 2] = (string)( $rowValues[0] ?? '' );
+		}
+
+		$plan = self::planRecase( $cells, array_keys( $this->urlsEncountered ) );
+		$this->output(
+			'LINKS_STATUS re-case: ' . count( $plan['updates'] ) . ' to correct, '
+			. $plan['ambiguous'] . ' ambiguous (skipped), '
+			. $plan['unmatched'] . " unmatched (skipped)\n"
+		);
+
+		$data = [];
+		foreach ( $plan['updates'] as $rowNum => $exactUrl ) {
+			$data[] = new \Google\Service\Sheets\ValueRange( [
+				'range' => "LINKS_STATUS!B{$rowNum}",
+				'values' => [ [ $exactUrl ] ],
+			] );
+		}
+		foreach ( array_chunk( $data, max( 1, (int)$chunkSize ) ) as $chunk ) {
+			$service->spreadsheets_values->batchUpdate(
+				$spreadsheetId,
+				new \Google\Service\Sheets\BatchUpdateValuesRequest( [
+					// RAW, so a URL is stored as text and never reinterpreted.
+					'valueInputOption' => 'RAW',
+					'data' => $chunk,
+				] )
+			);
+			$this->maintainRateLimit();
+		}
+	}
+
+	/**
+	 * Decide which LINKS_STATUS cells to re-case.
+	 *
+	 * A cell qualifies if it is all-lowercase and differs only by case from
+	 * at least one exported URL. It is corrected when exactly one exported
+	 * URL has that lowercase form (and the cell is not already that URL);
+	 * with several case variants there is no telling which one the row
+	 * stands for, so it is skipped as ambiguous. An all-lowercase cell that
+	 * no exported URL lowercases to is counted as unmatched (typically a
+	 * link since removed from the wiki).
+	 *
+	 * @param string[] $cells Cell values keyed by sheet row number
+	 * @param string[] $exportedUrls Exact-case URLs exported this run
+	 * @return array With keys "updates" (row number => exact-case URL), "ambiguous" and "unmatched" (counts)
+	 */
+	private static function planRecase( array $cells, array $exportedUrls ) {
+		$variants = [];
+		foreach ( $exportedUrls as $exactUrl ) {
+			$exactUrl = (string)$exactUrl;
+			$variants[ strtolower( $exactUrl ) ][ $exactUrl ] = true;
+		}
+
+		$updates = [];
+		$ambiguous = 0;
+		$unmatched = 0;
+		foreach ( $cells as $rowNum => $value ) {
+			if ( $value === '' || $value !== strtolower( $value ) ) {
+				// Empty, or already carries case, so never lowercased by us.
+				continue;
+			}
+			if ( !isset( $variants[$value] ) ) {
+				$unmatched++;
+				continue;
+			}
+			if ( isset( $variants[$value][$value] ) ) {
+				// The lowercase URL itself is a link on the wiki; the row is right.
+				continue;
+			}
+			if ( count( $variants[$value] ) > 1 ) {
+				$ambiguous++;
+				continue;
+			}
+			$updates[$rowNum] = (string)array_key_first( $variants[$value] );
+		}
+
+		return [ 'updates' => $updates, 'ambiguous' => $ambiguous, 'unmatched' => $unmatched ];
 	}
 
 	/**

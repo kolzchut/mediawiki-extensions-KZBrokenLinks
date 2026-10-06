@@ -41,6 +41,32 @@ php extensions/KZBrokenLinks/maintenance/SyncLinksSheet.php --chunksize={chunk_s
 | --------- | ------- | --------------------------------------------------------------------------------------------------- |
 | chunksize | Integer | Maximum number of external links to sync from Mediawiki to Google Sheets per API call (default 500) |
 | maxlinks  | Integer | Maximum number of external links to sync before exiting (default unlimited)                         |
+| no-recase | Flag    | Skip the LINKS_STATUS re-case step described below                                                  |
+
+#### URL case
+
+URLs are exported with their case preserved. Only the scheme and host are
+lowercased (both are case-insensitive, and MediaWiki already stores the host
+lowercased); the path, query string and fragment are written byte-exact,
+because many servers treat them case-sensitively and `HealthCheckLinks`
+requests exactly the URL in the sheet.
+
+Earlier versions lowercased the whole URL. To repair sheets written by those
+versions, each run reads `LINKS_STATUS!B` and rewrites every all-lowercase URL
+that is the lowercase form of exactly one URL exported in that run with its
+exact-case form (written as raw text). Rows with several case variants are
+skipped as ambiguous, rows with no matching URL (typically links since
+removed from the wiki) are left alone, and the counts of each are printed.
+A corrected row no longer qualifies, so once a sheet has been repaired the
+step writes nothing. It is skipped when `--maxlinks` is set, since a partial
+export cannot tell a removed link from one it did not reach, and can be
+disabled with `--no-recase`.
+
+Known limit: `NEW_LINKS` finds new URLs with `MATCH`, which is
+case-insensitive, so URLs that differ only by case share a single
+`LINKS_STATUS` row and only one of them is health-checked. On the dev Hebrew
+wiki that affects about 1.4% of distinct URLs (242 of 17,874), which is
+accepted rather than changing the template's formulas.
 
 ### HealthCheckLinks
 
