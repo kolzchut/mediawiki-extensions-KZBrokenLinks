@@ -50,18 +50,11 @@ class SyncLinksSheet extends KZBrokenLinksMaintenance {
 
 		$titleFormatter = \MediaWiki\MediaWikiServices::getInstance()->getTitleFormatter();
 
-		// Set up Google Client and Sheets Service
-		$client = new \Google_Client();
-		$client->setApplicationName( 'Google Sheets API' );
-		$client->setScopes( [ \Google\Service\Sheets::SPREADSHEETS ] );
-		$client->setAccessType( 'offline' );
-		$client->setAuthConfig( $googleConfig[ 'keyPath' ] );
-		$client->setConfig( 'retry', [ 'retries' => 6 ] );
-		$service = new \Google\Service\Sheets( $client );
+		// Set up the Google Sheets client
+		$sheets = $this->getSheetsClient();
 
 		// Clear all-links rows.
-		$clearService = new \Google\Service\Sheets\ClearValuesRequest();
-		$service->spreadsheets_values->clear( $spreadsheetId, 'ALL_LINKS!A2:D', $clearService );
+		$sheets->clearValues( $spreadsheetId, 'ALL_LINKS!A2:D' );
 		$this->maintainRateLimit();
 
 		// Get the highest el_id from the externallinks table
@@ -137,12 +130,10 @@ class SyncLinksSheet extends KZBrokenLinksMaintenance {
 			$this->output( ' (' . count( $this->urlsEncountered ) . " total unique URLs)\n" );
 
 			// Append rows to ALL_LINKS sheet.
-			$valueRange = new \Google\Service\Sheets\ValueRange();
-			$valueRange->setValues( $values );
-			$service->spreadsheets_values->append(
+			$sheets->appendValues(
 				$spreadsheetId,
 				'ALL_LINKS!A:ZZZ',
-				$valueRange,
+				$values,
 				[
 					'valueInputOption' => 'USER_ENTERED',
 					'insertDataOption' => 'INSERT_ROWS',
@@ -157,8 +148,8 @@ class SyncLinksSheet extends KZBrokenLinksMaintenance {
 		}
 
 		// Query new links.
-		$range = $service->spreadsheets_values->get( $spreadsheetId, 'NEW_LINKS!C2:C' );
-		$new_links_count = count( $range );
+		$appendValues = $sheets->getValues( $spreadsheetId, 'NEW_LINKS!C2:C' );
+		$new_links_count = count( $appendValues );
 		if ( $new_links_count === 0 ) {
 			$this->output( "Found no new links to add. Exiting.\n" );
 			return;
@@ -167,7 +158,6 @@ class SyncLinksSheet extends KZBrokenLinksMaintenance {
 		$this->output( "Appending $new_links_count new links to LINKS_STATUS sheet...\n" );
 
 		// Append new links to the LINKS_STATUS sheet.
-		$appendValues = $range->getValues();
 		if ( !empty( $appendValues[0][0] ) && $appendValues[0][0] == '#N/A' ) {
 			// The query in Google Sheets says there are no new links. Exit.
 			$this->output( "No new links to sync. Exiting.\n" );
@@ -177,12 +167,10 @@ class SyncLinksSheet extends KZBrokenLinksMaintenance {
 			// Don't overwrite the sheet's row-index column.
 			array_unshift( $appendValues[$i], '' );
 		}
-		$valueRange = new \Google\Service\Sheets\ValueRange();
-		$valueRange->setValues( $appendValues );
-		$service->spreadsheets_values->append(
+		$sheets->appendValues(
 			$spreadsheetId,
 			'LINKS_STATUS!A:ZZZ',
-			$valueRange,
+			$appendValues,
 			[
 				'valueInputOption' => 'USER_ENTERED',
 				'insertDataOption' => 'INSERT_ROWS',

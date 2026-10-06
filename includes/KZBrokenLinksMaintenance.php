@@ -1,5 +1,8 @@
 <?php
 
+use MediaWiki\Extension\KZBrokenLinks\SheetsClient;
+use MediaWiki\MediaWikiServices;
+
 /**
  * Abstract extension of Maintenance class with Google API rate limiting for us by KZBrokenLinks subclasses.
  *
@@ -10,6 +13,19 @@
 abstract class KZBrokenLinksMaintenance extends Maintenance {
 	private array $apiCalloutTimes;
 	private int $rateLimit;
+
+	/**
+	 * Create a Google Sheets client authenticated with the configured service-account key.
+	 *
+	 * @return SheetsClient
+	 */
+	protected function getSheetsClient(): SheetsClient {
+		$googleConfig = $this->getConfig()->get( 'KZBrokenLinksGoogleConfig' );
+		return new SheetsClient(
+			MediaWikiServices::getInstance()->getHttpRequestFactory(),
+			$googleConfig[ 'keyPath' ]
+		);
+	}
 
 	/**
 	 * Ensure API callouts don't exceed the configured rate limit.

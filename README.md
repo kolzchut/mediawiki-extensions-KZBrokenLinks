@@ -9,14 +9,18 @@ particular status data pertaining to the links' "health".
 ## Installation
 
 1. Download the extension
-2. Run `composer install --no-dev` in the extension's directory
-3. Add `wfLoadExtension( 'KZBrokenLinks' )` to `LocalSettings.php` or your custom PHP config file
+2. Add `wfLoadExtension( 'KZBrokenLinks' )` to `LocalSettings.php` or your custom PHP config file
+
+The extension has no runtime Composer dependencies. It talks to the Google Sheets v4 REST API
+directly, through MediaWiki's HTTP client, and needs only PHP's `openssl` extension to sign the
+service-account token request. (`composer install` in the extension's directory is needed only
+for the development tools behind `composer test`.)
 
 ## Configuration
 
 | Main Key                     | sub-key             | default                                 | description                                                       |
 | ---------------------------- |---------------------|-----------------------------------------|-------------------------------------------------------------------|
-| $wgKZBrokenLinksGoogleConfig | `keyPath`           | empty                                   | local path to Google Client authentication key JSON               |
+| $wgKZBrokenLinksGoogleConfig | `keyPath`           | empty                                   | local path to the Google service-account key JSON (or the decoded key as an array) |
 | $wgKZBrokenLinksGoogleConfig | `sheetId`           | empty                                   | ID of the Google Sheets document to sync to                       |
 | $wgKZBrokenLinksGoogleConfig | `rateLimit`         | 60                                      | Maximum Google API callouts per minute                            |
 | $wgKZBrokenLinksHttpConfig   | `proxy`             | empty                                   | optional proxy configuration for HTTP callouts                    |
