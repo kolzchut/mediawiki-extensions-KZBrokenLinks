@@ -68,14 +68,8 @@ class HealthCheckLinks extends KZBrokenLinksMaintenance {
 		$spreadsheetId = $googleConfig[ 'sheetId' ];
 		$excluded_protocols = $config->get( 'KZBrokenLinksHttpConfig' )[ 'excludedProtocols' ];
 
-		// Set up Google Client and Sheets Service
-		$client = new \Google_Client();
-		$client->setApplicationName( 'Google Sheets API' );
-		$client->setScopes( [ \Google\Service\Sheets::SPREADSHEETS ] );
-		$client->setAccessType( 'offline' );
-		$client->setAuthConfig( $googleConfig[ 'keyPath' ] );
-		$client->setConfig( 'retry', [ 'retries' => 6 ] );
-		$service = new \Google\Service\Sheets( $client );
+		// Set up the Google Sheets client
+		$sheets = $this->getSheetsClient();
 
 		// Check links health
 		$domains_checked = [];
@@ -92,8 +86,8 @@ class HealthCheckLinks extends KZBrokenLinksMaintenance {
 			while ( count( $status_updates ) < $batch_size && time() < $end_time ) {
 				// Query enough rows in NEXT_CHECK to fill the update batch (if we don't skip any)
 				$end_row = $start_row + $query_size;
-				$rows = $service->spreadsheets_values->get( $spreadsheetId, "NEXT_CHECK!A{$start_row}:F{$end_row}" );
-				if ( empty( $rows ) || empty( $rows->getValues()[0] ) || $rows->getValues()[0][0] == '#N/A' ) {
+				$rows = $sheets->getValues( $spreadsheetId, "NEXT_CHECK!A{$start_row}:F{$end_row}" );
+				if ( !$rows || empty( $rows[0] ) || $rows[0][0] == '#N/A' ) {
 					$this->output( "Row number {$start_row} in NEXT_CHECK sheet is empty. Preparing to exit.\n" );
 					$end_reached = true;
 					break;
@@ -101,12 +95,12 @@ class HealthCheckLinks extends KZBrokenLinksMaintenance {
 				// Loop through the returned rows and perform health checks.
 				for (
 					$row_i = 0;
-					!empty( $rows->getValues()[$row_i] ) && !empty( $rows->getValues()[$row_i][1] )
+					!empty( $rows[$row_i] ) && !empty( $rows[$row_i][1] )
 						&& count( $status_updates ) < $batch_size;
 					$row_i++, $start_row++
 				) {
 					// Parse URL.
-					$url = $rows->getValues()[$row_i][1];
+					$url = $rows[$row_i][1];
 					preg_match( "|([a-zA-Z]+)\\:\\/*([^\\/]+)\\/*(.*)|", $url, $url_components );
 					$protocol = $url_components[1];
 					$domain = $url_components[2];
@@ -141,22 +135,22 @@ class HealthCheckLinks extends KZBrokenLinksMaintenance {
 					}
 
 					// Call out to URL and check response status
-					$last_status = $rows->getValues()[$row_i][5] ?? 0;
+					$last_status = $rows[$row_i][5] ?? 0;
 					$result = $this->calloutToUrl( $url, $protocol, $last_status >= 300 );
 					$redirectUrl = ( strtolower( $result['finalUrl'] ) != $url ) ? $result['finalUrl'] : '';
 
 					// Add status update to batch.
-					$update_row = $rows->getValues()[$row_i][0];
+					$update_row = $rows[$row_i][0];
 					$updated_values = [ [
 						"=DATE({$today_year},{$today_month},{$today_day})",
 						$result['code'],
 						$redirectUrl,
 						$result['error'] ?? '',
 					] ];
-					$status_updates[] = new \Google\Service\Sheets\ValueRange( [
+					$status_updates[] = [
 						'range' => "LINKS_STATUS!E{$update_row}:H{$update_row}",
 						'values' => $updated_values,
-					] );
+					];
 
 					$this->output( "$url status: {$result['code']}\n" );
 				}
@@ -166,13 +160,7 @@ class HealthCheckLinks extends KZBrokenLinksMaintenance {
 			// Batch update LINKS_STATUS sheet with the collected health check data.
 			$batch_rows = count( $status_updates );
 			$this->output( "Batch updating {$batch_rows} rows in LINKS_STATUS...\n" );
-			$result = $service->spreadsheets_values->batchUpdate(
-				$spreadsheetId,
-				new \Google\Service\Sheets\BatchUpdateValuesRequest( [
-					'valueInputOption' => 'USER_ENTERED',
-					'data' => $status_updates,
-				] )
-			);
+			$sheets->batchUpdateValues( $spreadsheetId, $status_updates, 'USER_ENTERED' );
 			if ( $end_reached ) {
 				// No more rows left to process, so we're done.
 				return;
@@ -185,7 +173,7 @@ class HealthCheckLinks extends KZBrokenLinksMaintenance {
 	/**
 	 * Perform the callout and compile results.
 	 * @param string $url The URL to check
-	 * @param boolean $lastCheckFailed Whether the last check returned a failure code
+	 * @param bool $lastCheckFailed Whether the last check returned a failure code
 	 * @return array $result Array of information from the server response
 	 */
 	private function calloutToUrl( $url, $lastCheckFailed = false ) {

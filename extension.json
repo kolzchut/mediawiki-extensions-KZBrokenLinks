@@ -14,6 +14,9 @@
 	"AutoloadClasses": {
 		"KZBrokenLinksMaintenance": "includes/KZBrokenLinksMaintenance.php"
 	},
+	"AutoloadNamespaces": {
+		"MediaWiki\\Extension\\KZBrokenLinks\\": "includes/"
+	},
 	"config": {
 		"KZBrokenLinksGoogleConfig": {
 			"keyPath": "",
@@ -35,7 +38,6 @@
 			"i18n"
 		]
 	},
-	"load_composer_autoloader": true,
 	"ResourceModules": {},
 	"manifest_version": 1
 }
