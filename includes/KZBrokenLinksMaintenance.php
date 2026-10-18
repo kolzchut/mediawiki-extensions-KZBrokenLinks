@@ -41,7 +41,7 @@ abstract class KZBrokenLinksMaintenance extends Maintenance {
 		// Clear callouts recorded more than a minute ago.
 		$minute_ago = time() - 60;
 		$this->apiCalloutTimes = array_values(
-			array_filter( $this->apiCalloutTimes, fn( $time ) => $time > $minute_ago )
+			array_filter( $this->apiCalloutTimes, static fn ( $time ) => $time > $minute_ago )
 		);
 
 		// Add timestamp for the most recent callout.
