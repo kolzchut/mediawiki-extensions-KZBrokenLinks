@@ -111,14 +111,27 @@ class SyncLinksSheet extends KZBrokenLinksMaintenance {
 					continue;
 				}
 
+				if ( $row['page_title'] === null ) {
+					// The LEFT JOIN found no page: the link row outlived its page.
+					$this->error( "Warning: skipping el_id {$row['el_id']}: page {$row['el_from']} does not exist." );
+					continue;
+				}
+
 				$formattedTitle = $titleFormatter->formatTitle( $row['page_namespace'], $row['page_title'] );
 				$repeat_url = !empty( $this->urlsEncountered[$url] );
+				// getLinkText() is expensive, so don't run it for repeat links
+				$linkText = $repeat_url ? '' : $this->getLinkText( $rawUrl, $row['el_from'] );
+				if ( $linkText === null ) {
+					$this->error(
+						"Warning: skipping el_id {$row['el_id']}: page {$row['el_from']} is missing or has no content."
+					);
+					continue;
+				}
 				$values[] = [
 					$url,
 					$row['el_from'],
 					$formattedTitle,
-					// getLinkText() is expensive, so don't run it for repeat links
-					$repeat_url ? '' : $this->getLinkText( $rawUrl, $row['el_from'] ),
+					$linkText,
 				];
 				$this->urlsEncountered[ $url ] = true;
 				if ( $max_links > 0 && ++$processed_count == $max_links ) {
@@ -249,11 +262,15 @@ class SyncLinksSheet extends KZBrokenLinksMaintenance {
 	 * Locate and extract link text from wiki page.
 	 * @param string $url
 	 * @param int $page_id
-	 * @return string $linkText
+	 * @return string|null $linkText, or null if the page is missing or has no content
 	 */
 	private function getLinkText( $url, $page_id ) {
 		$page = \MediaWiki\MediaWikiServices::getInstance()->getWikiPageFactory()->newFromID( $page_id );
-		$wikitext = $page->getContent()->getWikitextForTransclusion();
+		$content = $page ? $page->getContent() : null;
+		if ( $content === null ) {
+			return null;
+		}
+		$wikitext = $content->getWikitextForTransclusion();
 		$url = preg_replace( '/\\s/', '%20', $url );
 		$mostlyDecodedUrl = preg_replace( '/\\s/', '%20', urldecode( $url ) );
 		$extraEncodedUrl = str_replace( [ '-', '@' ], [ '%2D', '%40' ], $url );
