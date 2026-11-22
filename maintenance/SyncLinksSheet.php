@@ -9,6 +9,8 @@ require_once ( "$IP/maintenance/Maintenance.php" );
 require_once ( "$IP/extensions/KZBrokenLinks/includes/KZBrokenLinksMaintenance.php" );
 // @codingStandardsIgnoreEnd
 
+use MediaWiki\Extension\KZBrokenLinks\AllLinksSheet;
+
 /**
  * Maintenance script to sync the Mediawiki table externalinks to Google Sheets
  *
@@ -54,7 +56,7 @@ class SyncLinksSheet extends KZBrokenLinksMaintenance {
 		$sheets = $this->getSheetsClient();
 
 		// Clear all-links rows.
-		$sheets->clearValues( $spreadsheetId, 'ALL_LINKS!A2:D' );
+		$sheets->clearValues( $spreadsheetId, AllLinksSheet::CLEAR_RANGE );
 		$this->maintainRateLimit();
 
 		// Get the highest el_id from the externallinks table
@@ -127,12 +129,7 @@ class SyncLinksSheet extends KZBrokenLinksMaintenance {
 					);
 					continue;
 				}
-				$values[] = [
-					$url,
-					$row['el_from'],
-					$formattedTitle,
-					$linkText,
-				];
+				$values[] = AllLinksSheet::buildRow( $url, $row['el_from'], $formattedTitle, $linkText );
 				$this->urlsEncountered[ $url ] = true;
 				if ( $max_links > 0 && ++$processed_count == $max_links ) {
 					// Maximum reached, so stop adding rows to sync.
@@ -143,15 +140,7 @@ class SyncLinksSheet extends KZBrokenLinksMaintenance {
 			$this->output( ' (' . count( $this->urlsEncountered ) . " total unique URLs)\n" );
 
 			// Append rows to ALL_LINKS sheet.
-			$sheets->appendValues(
-				$spreadsheetId,
-				'ALL_LINKS!A:ZZZ',
-				$values,
-				[
-					'valueInputOption' => 'USER_ENTERED',
-					'insertDataOption' => 'INSERT_ROWS',
-				]
-			);
+			AllLinksSheet::appendRows( $sheets, $spreadsheetId, $values );
 			$this->maintainRateLimit();
 
 			// If the maximum was reached, stop processing even if there are more rows in externallinks.
